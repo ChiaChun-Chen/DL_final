@@ -3,7 +3,21 @@ import random
 import time
 from transformers import pipeline
 import requests
-API_URL = "https://api-inference.huggingface.co/models/youlun77/finetuning-sentiment-model-25000-samples-BERT"
+import re
+
+def split_text(text):
+    match = re.search(r'([^\.?\!]*)([\.?\!])(.*)', text)
+    
+    if match:
+        before = match.group(1).strip()
+        after = match.group(3).strip()
+        words = [word for word in before.split() if word]
+        return before, after, len(words)
+    else:
+        words = [word for word in text.split() if word]
+        return text, "", len(words)
+
+API_URL = "https://api-inference.huggingface.co/models/youlun77/finetuning-sentiment-model-25000-samples"
 headers = {"Authorization": "Bearer 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"}
 
 def query_distilbert(payload):
@@ -13,49 +27,85 @@ def query_distilbert(payload):
 
 
 
-def demo_func_distil_label(input):
-    output, duration = query_distilbert({
-	    "inputs": str(input),
-    })
-    print(f'output = {output}')
-    score = 0
-    for item in output[0]:
-         if item['score'] > score:
-              result = item['label']
-              score = item['score']
+def demo_func_distil_label(input_text):
+    sentences = input_text.split('.')
+    result =[]
+    current_sentence = ''
+    total_score = 0
+    total_time = 0
 
-    if result=='LABEL_0':
-        result='NEGATIVE'
+    for sentence in sentences:
+        if sentence.strip() and len(current_sentence + sentence) <= 512:
+            current_sentence += sentence
+        else:
+            result.append(current_sentence.strip())
+            current_sentence = sentence
+    if current_sentence:
+        result.append(current_sentence.strip())
+
+    result = [sentence for sentence in result if sentence]
+    for part in result:
+        output, duration = query_distilbert({
+	    "inputs": str(part),
+        })
+        print(f'D:{output}')
+        total_time += duration
+        for array in output:
+            for item in array:
+                if "label" in item and item["label"] == "LABEL_0":
+                    total_score += item["score"]
+
+    avg=total_score/len(result)
+    if avg<=0.5:
+        return "POSTIVE!", total_time
     else:
-        result='POSITIVE'
+        return "NEGATIVE:(", total_time
+    
 
-    return result, duration
+    
+
     
 
 
-API_URL_BERT = "https://api-inference.huggingface.co/models/youlun77/finetuning-sentiment-model-25000-samples"
+API_URL_BERT = "https://api-inference.huggingface.co/models/youlun77/finetuning-sentiment-model-25000-samples-BERT"
 def query_bert(payload):
     start = time.time()
     response = requests.post(API_URL_BERT, headers=headers, json=payload)
     return response.json(), time.time()-start
 	
-def demo_func_bert_label(input):
-    output, duration = query_bert({
-	    "inputs": str(input),
-    })
-    print(f'output = {output}')
-    score = 0
-    for item in output[0]:
-         if item['score'] > score:
-              result = item['label']
-              score = item['score']
+def demo_func_bert_label(input_text):
+    sentences = input_text.split('.')
+    result =[]
+    current_sentence = ''
+    total_score = 0
+    total_time = 0
 
-    if result=='LABEL_0':
-        result='NEGATIVE'
+    for sentence in sentences:
+        if sentence.strip() and len(current_sentence + sentence) <= 512:
+            current_sentence += sentence
+        else:
+            result.append(current_sentence.strip())
+            current_sentence = sentence
+    if current_sentence:
+        result.append(current_sentence.strip())
+
+    result = [sentence for sentence in result if sentence]
+    for part in result:
+        output, duration = query_bert({
+	    "inputs": str(part),
+        })
+        print(f'{output}')
+        total_time += duration
+        for array in output:
+            for item in array:
+                if "label" in item and item["label"] == "LABEL_0":
+                    total_score += item["score"]
+
+    avg=total_score/len(result)
+    if avg<=0.5:
+        return "POSTIVE!", total_time
     else:
-        result='POSITIVE'
-
-    return result, duration
+        return "NEGATIVE:(", total_time
     
 
 model_name = "distilbert-base-uncased"
@@ -75,7 +125,6 @@ with gr.Blocks() as distilbot:
     input_text.submit(demo_func_distil_label, 
                       inputs = input_text, 
                       outputs = [distil_output_label, distil_time_text])
-    print(input_text)
     
     input_text.submit(demo_func_bert_label, 
                       inputs = input_text, 
