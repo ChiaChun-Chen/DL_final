@@ -3,12 +3,12 @@ import time
 from transformers import pipeline
 
 model_name = "youlun77/finetuning-sentiment-model-25000-samples"
-classifier = pipeline('sentiment-analysis', model=model_name)
+classifier_distilbert = pipeline('sentiment-analysis', model=model_name)
 
 def query_distilbert(payload):
     start = time.time()
-    response = classifier(payload["inputs"])
-    return response[0], 0.8*(time.time()-start)
+    response = classifier_distilbert(payload["inputs"])
+    return response[0], (time.time()-start)
 
 def demo_func_distil_label(input_text):
     sentences = input_text.split('.')
